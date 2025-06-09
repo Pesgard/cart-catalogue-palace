@@ -231,10 +231,12 @@ const Index = () => {
         isOpen={isCartOpen}
         onClose={() => setIsCartOpen(false)}
         cartItems={cartItems.map(item => ({
-          ...item.products,
           id: item.products.id,
+          name: item.products.name,
+          price: item.products.price,
+          image_url: item.products.image_url,
           quantity: item.quantity,
-          originalPrice: item.products.original_price
+          stock: item.products.stock
         }))}
         onUpdateQuantity={(productId, quantity) => {
           const cartItem = cartItems.find(item => item.products.id === productId);

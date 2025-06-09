@@ -7,10 +7,10 @@ import { Plus, Minus, Trash2, ShoppingBag } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface CartItem {
-  id: number;
+  id: string;
   name: string;
   price: number;
-  image: string;
+  image_url: string | null;
   quantity: number;
   stock: number;
 }
@@ -19,7 +19,7 @@ interface CartSidebarProps {
   isOpen: boolean;
   onClose: () => void;
   cartItems: CartItem[];
-  onUpdateQuantity: (productId: number, quantity: number) => void;
+  onUpdateQuantity: (productId: string, quantity: number) => void;
   totalPrice: number;
 }
 
@@ -55,7 +55,7 @@ const CartSidebar = ({ isOpen, onClose, cartItems, onUpdateQuantity, totalPrice 
                 {cartItems.map((item) => (
                   <div key={item.id} className="flex items-center space-x-3 p-3 bg-gray-50 rounded-lg">
                     <img
-                      src={item.image}
+                      src={item.image_url || "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=400"}
                       alt={item.name}
                       className="w-16 h-16 object-cover rounded-md"
                     />
