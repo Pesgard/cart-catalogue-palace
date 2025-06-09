@@ -1,75 +1,181 @@
-
-import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
-import { ShoppingCart } from "lucide-react";
-import { Product } from "@/types/database";
+import { useState } from 'react';
+import { ShoppingCart, Heart, Eye, Package } from 'lucide-react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardFooter } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { Product } from '@/types/database';
+import { useCart } from '@/hooks/useCart';
+import { useAuth } from '@/hooks/useAuth';
 
 interface ProductCardProps {
   product: Product;
-  onAddToCart: (product: Product) => void;
+  onProductClick?: (product: Product) => void;
 }
 
-const ProductCard = ({ product, onAddToCart }: ProductCardProps) => {
-  const discount = product.original_price 
-    ? Math.round(((product.original_price - product.price) / product.original_price) * 100)
+export const ProductCard = ({ product, onProductClick }: ProductCardProps) => {
+  const { user } = useAuth();
+  const { addToCart, getCartItemQuantity } = useCart();
+  const [isLoading, setIsLoading] = useState(false);
+
+  const cartQuantity = getCartItemQuantity(product.id);
+  const isOutOfStock = product.stock <= 0;
+  const hasDiscount = product.is_on_sale && product.original_price && product.original_price > product.price;
+  const discountPercentage = hasDiscount 
+    ? Math.round(((product.original_price! - product.price) / product.original_price!) * 100)
     : 0;
 
+  const handleAddToCart = async () => {
+    if (!user) {
+      return;
+    }
+
+    setIsLoading(true);
+    await addToCart(product.id, 1);
+    setIsLoading(false);
+  };
+
+  const handleProductClick = () => {
+    if (onProductClick) {
+      onProductClick(product);
+    }
+  };
+
   return (
-    <Card className="group hover:shadow-lg transition-all duration-300 hover:-translate-y-1 bg-white">
-      <CardHeader className="p-0">
-        <div className="relative overflow-hidden rounded-t-lg">
-          <img
-            src={product.image_url || "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=400"}
-            alt={product.name}
-            className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
-          />
-          {product.is_on_sale && (
-            <Badge className="absolute top-2 left-2 bg-red-500 hover:bg-red-600">
-              -{discount}%
-            </Badge>
-          )}
-          {product.stock < 5 && (
-            <Badge variant="destructive" className="absolute top-2 right-2">
-              ¡Pocas unidades!
-            </Badge>
-          )}
+    <Card className="group relative overflow-hidden hover:shadow-lg transition-all duration-300 cursor-pointer">
+      {/* Badges */}
+      <div className="absolute top-2 left-2 z-10 flex flex-col gap-1">
+        {hasDiscount && (
+          <Badge variant="destructive" className="text-xs font-bold">
+            -{discountPercentage}%
+          </Badge>
+        )}
+        {isOutOfStock && (
+          <Badge variant="secondary" className="text-xs">
+            Sin Stock
+          </Badge>
+        )}
+        {product.stock <= 5 && product.stock > 0 && (
+          <Badge variant="outline" className="text-xs">
+            Últimas {product.stock}
+          </Badge>
+        )}
+      </div>
+
+      {/* Quick Actions */}
+      <div className="absolute top-2 right-2 z-10 opacity-0 group-hover:opacity-100 transition-opacity duration-300">
+        <div className="flex flex-col gap-1">
+          <Button
+            size="icon"
+            variant="secondary"
+            className="h-8 w-8"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleProductClick();
+            }}
+          >
+            <Eye className="h-4 w-4" />
+          </Button>
+          <Button
+            size="icon"
+            variant="secondary"
+            className="h-8 w-8"
+          >
+            <Heart className="h-4 w-4" />
+          </Button>
         </div>
-      </CardHeader>
-      
-      <CardContent className="p-4">
-        <h3 className="font-semibold text-lg mb-2 line-clamp-1">{product.name}</h3>
-        <p className="text-gray-600 text-sm mb-3 line-clamp-2">{product.description}</p>
-        
-        <div className="flex items-center justify-between">
-          <div className="flex items-center space-x-2">
-            <span className="text-xl font-bold text-blue-600">
+      </div>
+
+      {/* Product Image */}
+      <div className="relative aspect-square overflow-hidden" onClick={handleProductClick}>
+        {product.image_url ? (
+          <img
+            src={product.image_url}
+            alt={product.name}
+            className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+          />
+        ) : (
+          <div className="w-full h-full bg-muted flex items-center justify-center">
+            <Package className="h-16 w-16 text-muted-foreground" />
+          </div>
+        )}
+      </div>
+
+      <CardContent className="p-4" onClick={handleProductClick}>
+        <div className="space-y-2">
+          {/* Category */}
+          <Badge variant="outline" className="text-xs capitalize">
+            {product.category}
+          </Badge>
+
+          {/* Product Name */}
+          <h3 className="font-semibold text-lg line-clamp-2 min-h-[3.5rem]">
+            {product.name}
+          </h3>
+
+          {/* Description */}
+          {product.description && (
+            <p className="text-sm text-muted-foreground line-clamp-2">
+              {product.description}
+            </p>
+          )}
+
+          {/* Price */}
+          <div className="flex items-center gap-2">
+            <span className="text-xl font-bold text-primary">
               ${product.price.toFixed(2)}
             </span>
-            {product.original_price && (
-              <span className="text-sm text-gray-500 line-through">
-                ${product.original_price.toFixed(2)}
+            {hasDiscount && (
+              <span className="text-sm text-muted-foreground line-through">
+                ${product.original_price!.toFixed(2)}
               </span>
             )}
           </div>
-          <Badge variant="secondary" className="text-xs">
-            {product.category}
-          </Badge>
+
+          {/* Stock Info */}
+          <div className="flex items-center gap-1 text-xs text-muted-foreground">
+            <Package className="h-3 w-3" />
+            <span>Stock: {product.stock}</span>
+          </div>
         </div>
       </CardContent>
-      
+
       <CardFooter className="p-4 pt-0">
-        <Button
-          onClick={() => onAddToCart(product)}
-          className="w-full bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700"
-          disabled={product.stock === 0}
-        >
-          <ShoppingCart className="h-4 w-4 mr-2" />
-          {product.stock === 0 ? "Sin stock" : "Agregar al carrito"}
-        </Button>
+        <div className="w-full space-y-2">
+          {/* Add to Cart Button */}
+          <Button
+            className="w-full"
+            onClick={(e) => {
+              e.stopPropagation();
+              handleAddToCart();
+            }}
+            disabled={!user || isOutOfStock || isLoading}
+            variant={cartQuantity > 0 ? "secondary" : "default"}
+          >
+            {isLoading ? (
+              <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-current"></div>
+            ) : (
+              <>
+                <ShoppingCart className="h-4 w-4 mr-2" />
+                {!user 
+                  ? "Inicia Sesión" 
+                  : isOutOfStock 
+                    ? "Sin Stock" 
+                    : cartQuantity > 0 
+                      ? `En Carrito (${cartQuantity})` 
+                      : "Agregar al Carrito"
+                }
+              </>
+            )}
+          </Button>
+
+          {/* Quick Add */}
+          {cartQuantity > 0 && (
+            <div className="text-center text-xs text-muted-foreground">
+              Tienes {cartQuantity} en tu carrito
+            </div>
+          )}
+        </div>
       </CardFooter>
     </Card>
   );
 };
-
-export default ProductCard;

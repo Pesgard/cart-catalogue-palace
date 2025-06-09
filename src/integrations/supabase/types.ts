@@ -122,6 +122,14 @@ export type Database = {
         Args: { user_id: string }
         Returns: Database["public"]["Enums"]["user_role"]
       }
+      create_profile_if_missing: {
+        Args: { 
+          user_id: string
+          user_email: string
+          user_full_name?: string
+        }
+        Returns: boolean
+      }
     }
     Enums: {
       user_role: "admin" | "consumidor"

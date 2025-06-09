@@ -73,15 +73,39 @@ export const AuthProvider = ({ children }: { children: React.ReactNode }) => {
   };
 
   const signUp = async (email: string, password: string, fullName: string) => {
-    const { error } = await supabase.auth.signUp({
+    const { data, error } = await supabase.auth.signUp({
       email,
       password,
       options: {
         data: {
           full_name: fullName,
+          fullName: fullName, // Incluir ambos para compatibilidad
         },
       },
     });
+
+    // Si el usuario se creó pero hay error con el perfil, intentar crearlo manualmente
+    if (data.user && error?.message?.includes('Database error saving new user')) {
+      try {
+        const { error: profileError } = await supabase.rpc('create_profile_if_missing', {
+          user_id: data.user.id,
+          user_email: email,
+          user_full_name: fullName
+        });
+        
+        if (profileError) {
+          console.error('Error creating profile manually:', profileError);
+          return { error: profileError };
+        }
+        
+        // Si se creó el perfil exitosamente, no retornar el error original
+        return { error: null };
+      } catch (profileError) {
+        console.error('Error calling create_profile_if_missing:', profileError);
+        return { error };
+      }
+    }
+
     return { error };
   };
 
