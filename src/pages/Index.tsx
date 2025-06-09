@@ -1,80 +1,32 @@
 
 import { useState, useEffect } from "react";
-import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
-import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { ShoppingCart, Search, Filter, User } from "lucide-react";
+import { Search, Filter } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { useProducts } from "@/hooks/useProducts";
+import { supabase } from "@/integrations/supabase/client";
+import { Product, CartItem } from "@/types/database";
 import Header from "@/components/Header";
 import ProductCard from "@/components/ProductCard";
 import CartSidebar from "@/components/CartSidebar";
 
-// Mock data para demostración
-const mockProducts = [
-  {
-    id: 1,
-    name: "Smartphone Premium",
-    price: 899.99,
-    originalPrice: 999.99,
-    category: "electrónicos",
-    image: "https://images.unsplash.com/photo-1511707171634-5f897ff02aa9?w=400",
-    description: "El último smartphone con tecnología avanzada",
-    isVisible: true,
-    isOnSale: true,
-    stock: 10
-  },
-  {
-    id: 2,
-    name: "Laptop Gaming",
-    price: 1299.99,
-    category: "electrónicos",
-    image: "https://images.unsplash.com/photo-1496181133206-80ce9b88a853?w=400",
-    description: "Laptop de alto rendimiento para gaming",
-    isVisible: true,
-    isOnSale: false,
-    stock: 5
-  },
-  {
-    id: 3,
-    name: "Camiseta Casual",
-    price: 29.99,
-    category: "ropa",
-    image: "https://images.unsplash.com/photo-1521572163474-6864f9cf17ab?w=400",
-    description: "Camiseta cómoda para uso diario",
-    isVisible: true,
-    isOnSale: false,
-    stock: 20
-  },
-  {
-    id: 4,
-    name: "Auriculares Bluetooth",
-    price: 199.99,
-    originalPrice: 249.99,
-    category: "electrónicos",
-    image: "https://images.unsplash.com/photo-1505740420928-5e560c06d30e?w=400",
-    description: "Auriculares inalámbricos con cancelación de ruido",
-    isVisible: true,
-    isOnSale: true,
-    stock: 15
-  }
-];
-
-const categories = ["todos", "electrónicos", "ropa", "hogar", "deportes"];
+const categories = ["todos", "electrónicos", "ropa", "hogar", "deportes", "accesorios"];
 
 const Index = () => {
-  const [products, setProducts] = useState(mockProducts);
-  const [filteredProducts, setFilteredProducts] = useState(mockProducts);
+  const { products, loading: productsLoading } = useProducts();
+  const { user, loading: authLoading } = useAuth();
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [selectedCategory, setSelectedCategory] = useState("todos");
   const [searchTerm, setSearchTerm] = useState("");
-  const [cartItems, setCartItems] = useState([]);
+  const [cartItems, setCartItems] = useState<(CartItem & { products: Product })[]>([]);
   const [isCartOpen, setIsCartOpen] = useState(false);
   const { toast } = useToast();
 
   // Filtrar productos
   useEffect(() => {
-    let filtered = products.filter(product => product.isVisible);
+    let filtered = products;
     
     if (selectedCategory !== "todos") {
       filtered = filtered.filter(product => product.category === selectedCategory);
@@ -83,49 +35,120 @@ const Index = () => {
     if (searchTerm) {
       filtered = filtered.filter(product =>
         product.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        product.description.toLowerCase().includes(searchTerm.toLowerCase())
+        (product.description && product.description.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
     
     setFilteredProducts(filtered);
   }, [products, selectedCategory, searchTerm]);
 
-  const addToCart = (product) => {
-    const existingItem = cartItems.find(item => item.id === product.id);
-    
-    if (existingItem) {
-      if (existingItem.quantity >= product.stock) {
-        toast({
-          title: "Stock insuficiente",
-          description: "No hay más unidades disponibles",
-          variant: "destructive"
-        });
-        return;
-      }
-      setCartItems(cartItems.map(item =>
-        item.id === product.id
-          ? { ...item, quantity: item.quantity + 1 }
-          : item
-      ));
+  // Cargar carrito del usuario
+  useEffect(() => {
+    if (user) {
+      loadCartItems();
     } else {
-      setCartItems([...cartItems, { ...product, quantity: 1 }]);
+      setCartItems([]);
     }
-    
-    toast({
-      title: "Producto agregado",
-      description: `${product.name} se agregó al carrito`,
-    });
+  }, [user]);
+
+  const loadCartItems = async () => {
+    if (!user) return;
+
+    try {
+      const { data, error } = await supabase
+        .from('cart_items')
+        .select(`
+          *,
+          products (*)
+        `)
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+      setCartItems(data || []);
+    } catch (error) {
+      console.error('Error loading cart:', error);
+    }
   };
 
-  const updateCartItemQuantity = (productId, newQuantity) => {
-    if (newQuantity === 0) {
-      setCartItems(cartItems.filter(item => item.id !== productId));
-    } else {
-      setCartItems(cartItems.map(item =>
-        item.id === productId
-          ? { ...item, quantity: newQuantity }
-          : item
-      ));
+  const addToCart = async (product: Product) => {
+    if (!user) {
+      toast({
+        title: "Iniciar sesión requerido",
+        description: "Debes iniciar sesión para agregar productos al carrito",
+        variant: "destructive"
+      });
+      return;
+    }
+
+    try {
+      const existingItem = cartItems.find(item => item.product_id === product.id);
+      
+      if (existingItem) {
+        if (existingItem.quantity >= product.stock) {
+          toast({
+            title: "Stock insuficiente",
+            description: "No hay más unidades disponibles",
+            variant: "destructive"
+          });
+          return;
+        }
+
+        const { error } = await supabase
+          .from('cart_items')
+          .update({ quantity: existingItem.quantity + 1 })
+          .eq('id', existingItem.id);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('cart_items')
+          .insert({
+            user_id: user.id,
+            product_id: product.id,
+            quantity: 1
+          });
+
+        if (error) throw error;
+      }
+
+      await loadCartItems();
+      toast({
+        title: "Producto agregado",
+        description: `${product.name} se agregó al carrito`,
+      });
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      toast({
+        title: "Error",
+        description: "No se pudo agregar el producto al carrito",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const updateCartItemQuantity = async (cartItemId: string, newQuantity: number) => {
+    if (!user) return;
+
+    try {
+      if (newQuantity === 0) {
+        const { error } = await supabase
+          .from('cart_items')
+          .delete()
+          .eq('id', cartItemId);
+
+        if (error) throw error;
+      } else {
+        const { error } = await supabase
+          .from('cart_items')
+          .update({ quantity: newQuantity })
+          .eq('id', cartItemId);
+
+        if (error) throw error;
+      }
+
+      await loadCartItems();
+    } catch (error) {
+      console.error('Error updating cart:', error);
     }
   };
 
@@ -134,8 +157,19 @@ const Index = () => {
   };
 
   const getTotalPrice = () => {
-    return cartItems.reduce((total, item) => total + (item.price * item.quantity), 0);
+    return cartItems.reduce((total, item) => total + (item.products.price * item.quantity), 0);
   };
+
+  if (authLoading || productsLoading) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-32 w-32 border-b-2 border-blue-600 mx-auto"></div>
+          <p className="mt-4 text-gray-600">Cargando...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100">
@@ -196,8 +230,18 @@ const Index = () => {
       <CartSidebar
         isOpen={isCartOpen}
         onClose={() => setIsCartOpen(false)}
-        cartItems={cartItems}
-        onUpdateQuantity={updateCartItemQuantity}
+        cartItems={cartItems.map(item => ({
+          ...item.products,
+          id: item.products.id,
+          quantity: item.quantity,
+          originalPrice: item.products.original_price
+        }))}
+        onUpdateQuantity={(productId, quantity) => {
+          const cartItem = cartItems.find(item => item.products.id === productId);
+          if (cartItem) {
+            updateCartItemQuantity(cartItem.id, quantity);
+          }
+        }}
         totalPrice={getTotalPrice()}
       />
     </div>

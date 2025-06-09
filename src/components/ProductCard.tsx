@@ -3,18 +3,7 @@ import { Card, CardContent, CardFooter, CardHeader } from "@/components/ui/card"
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ShoppingCart } from "lucide-react";
-
-interface Product {
-  id: number;
-  name: string;
-  price: number;
-  originalPrice?: number;
-  category: string;
-  image: string;
-  description: string;
-  isOnSale: boolean;
-  stock: number;
-}
+import { Product } from "@/types/database";
 
 interface ProductCardProps {
   product: Product;
@@ -22,8 +11,8 @@ interface ProductCardProps {
 }
 
 const ProductCard = ({ product, onAddToCart }: ProductCardProps) => {
-  const discount = product.originalPrice 
-    ? Math.round(((product.originalPrice - product.price) / product.originalPrice) * 100)
+  const discount = product.original_price 
+    ? Math.round(((product.original_price - product.price) / product.original_price) * 100)
     : 0;
 
   return (
@@ -31,11 +20,11 @@ const ProductCard = ({ product, onAddToCart }: ProductCardProps) => {
       <CardHeader className="p-0">
         <div className="relative overflow-hidden rounded-t-lg">
           <img
-            src={product.image}
+            src={product.image_url || "https://images.unsplash.com/photo-1556228720-195a672e8a03?w=400"}
             alt={product.name}
             className="w-full h-48 object-cover group-hover:scale-105 transition-transform duration-300"
           />
-          {product.isOnSale && (
+          {product.is_on_sale && (
             <Badge className="absolute top-2 left-2 bg-red-500 hover:bg-red-600">
               -{discount}%
             </Badge>
@@ -57,9 +46,9 @@ const ProductCard = ({ product, onAddToCart }: ProductCardProps) => {
             <span className="text-xl font-bold text-blue-600">
               ${product.price.toFixed(2)}
             </span>
-            {product.originalPrice && (
+            {product.original_price && (
               <span className="text-sm text-gray-500 line-through">
-                ${product.originalPrice.toFixed(2)}
+                ${product.original_price.toFixed(2)}
               </span>
             )}
           </div>

@@ -4,6 +4,7 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ShoppingCart, User, LogOut, Settings } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
 import AuthModal from "./AuthModal";
 
 interface HeaderProps {
@@ -13,27 +14,18 @@ interface HeaderProps {
 
 const Header = ({ cartItemsCount, onCartClick }: HeaderProps) => {
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
-  const [user, setUser] = useState(null); // En producción esto vendría de Supabase
+  const { user, profile, signOut } = useAuth();
   const { toast } = useToast();
 
-  const handleLogin = (userData) => {
-    setUser(userData);
-    setIsAuthModalOpen(false);
-    toast({
-      title: "Bienvenido",
-      description: `Hola ${userData.name}!`,
-    });
-  };
-
-  const handleLogout = () => {
-    setUser(null);
+  const handleLogout = async () => {
+    await signOut();
     toast({
       title: "Sesión cerrada",
       description: "Has cerrado sesión exitosamente",
     });
   };
 
-  const isAdmin = user?.role === "admin";
+  const isAdmin = profile?.role === "admin";
 
   return (
     <header className="sticky top-0 z-50 bg-white/95 backdrop-blur supports-[backdrop-filter]:bg-white/60 border-b border-gray-200">
@@ -76,7 +68,9 @@ const Header = ({ cartItemsCount, onCartClick }: HeaderProps) => {
 
           {user ? (
             <div className="flex items-center space-x-2">
-              <span className="text-sm text-gray-700">Hola, {user.name}</span>
+              <span className="text-sm text-gray-700">
+                Hola, {profile?.full_name || user.email}
+              </span>
               <Button variant="ghost" size="sm" onClick={handleLogout}>
                 <LogOut className="h-4 w-4" />
               </Button>
@@ -97,7 +91,7 @@ const Header = ({ cartItemsCount, onCartClick }: HeaderProps) => {
       <AuthModal
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
-        onLogin={handleLogin}
+        onLogin={() => setIsAuthModalOpen(false)}
       />
     </header>
   );
